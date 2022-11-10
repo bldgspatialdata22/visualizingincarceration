@@ -1,11 +1,156 @@
 ---
-title: "visualizingincarceration"
+title: "Project Proposal"
+author: "Alicia Sabatino"
+format: html
+editor: visual
+bibliography: references.bib
 ---
 
-## Quarto
+# Visualizing Incarceration
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+This project aims to visualize the true scope of mass incarceration. Mass incarceration in the United States cannot be truly understood without showing how this system impacts families and communities around the country. Studies show that an estimated 1 in 2 people in the United States have a parent, partner or sibling that has been incarcerated [@enns2019].
+
+## Project Goals
+
+This project will visualize this with a web map interface on a quarto page. The map will use population frequencies by race, income, education level, and region based on a study completed by individuals at Cornell [@enns2019]. The map will also include all federal and state prisons and local jails.
+
+If you click a facility, you will be able to see the name, number of inmates, and facility type. If you click on one of the rendered density dots, you can see the population and race breakdown for the block group. I also would like to integrate qualitative data provided from surveys by state such that if you zoomed out until you see the outlines of the states layer, you can click a state and read how people described their experience visiting their incarcerated family member or partner. I will provide resources to learn more about prisons and policing below the map.
+
+This project will also help me to develop my skills with various free and open source mapping methods, as I have completed a [similar project using ESRI products](https://aliciasab.github.io/projects/arcgis_javascript_api/visualizing_incarceration.html).
+
+Producing an interactive map like this will hopefully help people understand how truly staggering and far reaching mass incarceration is in the United States. By providing resources such as police and abolition reading lists, as well as links to bail funds by state, I hope to avoid doing harm which can occur when simply mapping populations that are over-policed. I also hope to include an informational pop-up providing context and information on the over-policing of certain communities.
+
+## Data
+
+Several datasets will be used together to produce this interactive web map and the data comes from a range of sources, from official government bodies, to survey data from individuals who have been impacted by mass incarceration.
+
+### Detention Facilities
+
+I have a dataset which I have fetched using R of all the state and federal prisons and local jails. It is based on this [script](https://www.gl-li.com/2018/02/05/map-prisons-in-the-united-states/). I may attempt to fetch 2020 data if possible [@totalcensus]. Change to FALSE to TRUE run script.
 
 ```{r}
-1 + 1
+if (FALSE) {
+ library(totalcensus)
+ library(tidyverse)
+
+
+# fetch prisons and jails
+ pris_pop <- read_decennial(
+  year = 2010,
+  states = "US",
+  table_contents = c(
+    "total = PCT0200003", 
+    "fed_pris = PCT0200005", 
+    "state_pris = PCT0200006",
+    "local_jail = PCT0200007"
+  ),
+  summary_level = "county subdivision",
+  show_progress = FALSE
+) %>%
+  # remove county subdivisions that has no prison population
+  filter(fed_pris != 0 | state_pris != 0 | local_jail != 0) %>%
+  mutate(fed_pris = ifelse(fed_pris == 0, NA, fed_pris)) %>%
+  mutate(state_pris = ifelse(state_pris == 0, NA, state_pris)) %>%
+  mutate(local_jail = ifelse(local_jail == 0, NA, local_jail)) %>%
+  select(lon, lat, NAME, fed_pris, state_pris, local_jail) %>%
+  gather(key = "type", value = "inmates", -c(lon, lat, NAME)) %>%
+  filter(!is.na(inmates)) %>%
+  mutate(type = factor(
+    type, levels = c("local_jail", "state_pris", "fed_pris")
+  )) %>%
+  arrange(-inmates)
+ 
+ 
+ 
+}
 ```
+
+### Census Data for Dot Density
+
+Census data for 2018 (the year of the study) by block group will be used for the dot density map [@tidycensus]. This will be mutated with the numbers from the study.
+
+### Numbers and Qualitative Data from Cornell Paper
+
+The study provides rates by gender, race, income, education level, and region by mutating block group population data with these rates, we can approximate how many people in said block group know someone who is incarcerated.
+
+Survey respondents also described their experience visiting their incarcerated family member or partner, I have joined this data to a layer of US states, and users of the web map will be able to click the state and read their response.
+
+### States Layer
+
+This will be a basic [US states layer](https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html) from the US Census Bureau.
+
+## Approach
+
+### Carto and Leaflet
+
+I would like to use a dark basemap like Carto Dark Matter and I aim to achieve this using the leaflet package [@leaflet].
+
+```{r}
+library(dplyr)
+library(leaflet)
+
+m <- leaflet() %>% setView(lng = -98.5795, lat = 39.8283, zoom = 4)
+
+m %>% addProviderTiles(providers$CartoDB.DarkMatter)
+```
+
+### Dot Density
+
+I will be attempting to render the data using dot density based on this [script](https://walker-data.com/tidycensus/reference/as_dot_density.html). I will probably change this to 2018 data with to reflect the year the survey was completed [@tidycensus]. Change to FALSE to TRUE run script.
+
+```{r}
+if (FALSE) {
+  
+  library(tidycensus)
+  library(ggplot2)
+  
+  # Identify variables for mapping
+  race_vars <- c(
+    Hispanic = "P2_002N",
+    White = "P2_005N",
+    Black = "P2_006N",
+    Asian = "P2_008N"
+  )
+  
+  # Get data from tidycensus
+  maryland_race <- get_decennial(
+    geography = "block group",
+    variables = race_vars,
+    state = "MD",
+    geometry = TRUE,
+    year = 2020
+  )
+  
+  # Convert data to dots
+  maryland_dots <- as_dot_density(
+    maryland_race,
+    value = "value",
+    values_per_dot = 100,
+    group = "variable"
+  )
+  
+  # Use one set of polygon geometries as a base layer
+  maryland_base <- maryland_race[maryland_race$variable == "Hispanic", ]
+  
+  # Map with ggplot2
+  ggplot() +
+    geom_sf(data = maryland_base,
+            fill = "white",
+            color = "grey") +
+    geom_sf(data = maryland_dots,
+            aes(color = variable),
+            size = 0.01) +
+    theme_void()
+  
+}
+```
+
+One challenge will be having to figure out how to get this onto a leaflet map or an interactive map.
+
+### Quarto Page
+
+The web map will hopefully be integrated into a quarto page, unless it ends up being necessary to host on my own WordPress site and code a custom html page to wrap the web map with all the customization I feel is necessary (like pop-ups).
+
+## Conclusion
+
+This project aims to bring a range of datasets together in order to visualize and map mass incarceration and the impact it has on immediate family members in the United States. This project will combine a variety of tools and R packages to achieve this. I am building on a previous approach of my own in which I used proprietary ESRI services to create this final product. In the end, I hope to not only create a powerful visualization, but also improve my ability of using tools available to all to create moving web maps.
