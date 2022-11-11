@@ -1,0 +1,34 @@
+---
+title: "Visualizing Incarceration: Proposal Feedback"
+author: "Eli Pousson"
+format: html
+date: 2022-11-10
+editor: visual
+---
+
+## Changes I made
+
+-   Rather than wrapping your totalcensus and tidycensus scripts with `if` calls, I added the `eval: false` tag to those chunks so they won't be executed if you knit the document. I also added calls to `readr::write_rds()` to write the objects to your data folder and read it back in for the chunks that are executed. This way anyone could reproduce your document even without re-running the original download scripts. With this approach, the file size restrictions for GitHub also shouldn't a significant issue for a statewide map. If you scale up to a national map, you may run into file size issues but those could also be avoided by hosting data using a free ArcGIS Online public account or a Mapbox vector tileset (prepped with [the mapboxapi package](https://walker-data.com/mapboxapi/articles/creating-tiles.html)).
+-   Your code subsetting `md_race` kicked back errors when I tried to render the object. I noticed the object had empty geometries so I tried adding a call to `sf::st_make_valid()` which fixed the issue well-enough to get it to render---but you still may want to figure out why there are empty geometries in that data.
+
+## Changes you need to make
+
+-   Make sure to add your `references.bib` file to the repository. Without that file in place, I had to comment out the bibliography tag from the header to render the proposal without an error. A minor formatting note: those references are converted to footnotes by default so they should go *after* the period---not before.
+-   Add an additional Quarto document, e.g. `map.qmd`, to your project then add a chunk the `column: screen` cell option as described in the [Quarto docs on article layout](https://quarto.org/docs/authoring/article-layout.html#screen-column). Add an interactive map to the chunk to check out how you can present a map within a Quarto document. You may also want to check out the [Get started with Quarto workshop](https://rstudio-conf-2022.github.io/get-started-quarto/materials/06-websites.html#/why-not-wordpress-tumblr-medium.com-blogger.com-etc1) for some of the reasons why Quarto may be better than WordPress---especially for a focused website like the one you've proposed.
+-   Create a README and fill it out with some basic information about your project (reusing text from your proposal where it make sense). Imagine you're trying to briefly explain the project to another student interested in doing a similar project and show where they can access the same data you are using. Once you fill in some information, don't forget to render the Rmd file using `knitr::knit("README.Rmd")`. You'll need to go back and expand the README later on when you further develop your analysis. Check out Reina's [slides from back in September](https://raw.githubusercontent.com/reinacmurray/documenting-spatial-data-class/main/Presentation/Documenting%20Spatial%20Data.pdf) for more tips on writing READMEs for data projects.
+
+## Things to consider
+
+-   My only concern about the proposed map is that you're presenting a lot of information but leaving a lot of interpretation up to the viewer. So---try to get your first draft done early enough that you test your map out! Show it to friends, observe how they navigate the map, and ask them what they get out of the experience. Their responses or ideas could help you refine your design or suggest opportunities for combining, summarizing, or re-organizing the data you're working with.
+-   You should write about and try to visualize the margin of error associated with the 2019 survey that you're building on *especially* if you end up combining the data with ACS data (which has its' own margin of error). You might find it useful to take a look at this series on the ESRI blog about [importance of using Margins of Error (MOEs) within thematic mapping projects](https://www.esri.com/arcgis-blog/products/arcgis-living-atlas/mapping/margins-of-error-and-mapping/), [effective ways to communicateMOE through pop-ups](https://www.esri.com/arcgis-blog/products/arcgis-living-atlas/mapping/effective-ways-to-communicate-margins-of-error-through-pop-ups/), and how to [explore labeling to convey MOE](https://www.esri.com/arcgis-blog/products/arcgis-living-atlas/mapping/explore-labeling-in-map-viewer-to-convey-margins-of-error/). Clearly explaining the limits and boundaries of your knowledge is essential.
+-   leaflet is a good option for an interactive map but I'd recommend starting with a few small experiments to see how styling, layers, and performance works using different packages or approaches.For example, the `tmap::tmap_leaflet()` function can be helpful for setting up a map that you can then modify using leaflet functions.
+
+```{r}
+maryland_dots <- readr::read_rds(here::here("data/maryland_dots.rds"))
+
+dot_map <- tmap::tm_shape(maryland_dots) +
+  tmap::tm_dots(col = "variable")
+
+tmap::tmap_leaflet(dot_map) %>% 
+  leaflet::addProviderTiles(providers$Stamen.Toner)
+```

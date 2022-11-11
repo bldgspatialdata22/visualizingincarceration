@@ -1,18 +1,25 @@
 ---
-title: "Project Proposal"
+title: "Visualizing Incarceration: Project Proposal"
 author: "Alicia Sabatino"
 format: html
 editor: visual
-bibliography: references.bib
+# bibliography: references.bib
 ---
 
-# Visualizing Incarceration
+```{r}
+#| echo: false
+library(totalcensus)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(leaflet)
+```
 
-This project aims to visualize the true scope of mass incarceration. Mass incarceration in the United States cannot be truly understood without showing how this system impacts families and communities around the country. Studies show that an estimated 1 in 2 people in the United States have a parent, partner or sibling that has been incarcerated [@enns2019].
+This project aims to visualize the true scope of mass incarceration. Mass incarceration in the United States cannot be truly understood without showing how this system impacts families and communities around the country. Studies show that an estimated one in two people in the United States have a parent, partner or sibling that has been incarcerated.[@enns2019]
 
 ## Project Goals
 
-This project will visualize this with a web map interface on a quarto page. The map will use population frequencies by race, income, education level, and region based on a study completed by individuals at Cornell [@enns2019]. The map will also include all federal and state prisons and local jails.
+This project will visualize this with a web map interface published with Quarto. The map will use population frequencies by race, income, education level, and region based on a study completed by individuals at Cornell.[@enns2019] The map will also include all federal and state prisons and local jails.
 
 If you click a facility, you will be able to see the name, number of inmates, and facility type. If you click on one of the rendered density dots, you can see the population and race breakdown for the block group. I also would like to integrate qualitative data provided from surveys by state such that if you zoomed out until you see the outlines of the states layer, you can click a state and read how people described their experience visiting their incarcerated family member or partner. I will provide resources to learn more about prisons and policing below the map.
 
@@ -26,21 +33,18 @@ Several datasets will be used together to produce this interactive web map and t
 
 ### Detention Facilities
 
-I have a dataset which I have fetched using R of all the state and federal prisons and local jails. It is based on this [script](https://www.gl-li.com/2018/02/05/map-prisons-in-the-united-states/). I may attempt to fetch 2020 data if possible [@totalcensus]. Change to FALSE to TRUE run script.
+I have a dataset which I have fetched using R of all the state and federal prisons and local jails. It is based on this [script](https://www.gl-li.com/2018/02/05/map-prisons-in-the-united-states/). I may attempt to fetch 2020 data if possible.[@totalcensus]
 
 ```{r}
-if (FALSE) {
- library(totalcensus)
- library(tidyverse)
-
-
+#| eval: false
+set_path_to_census(here::here("data"))
 # fetch prisons and jails
- pris_pop <- read_decennial(
+pris_pop <- read_decennial(
   year = 2010,
   states = "US",
   table_contents = c(
-    "total = PCT0200003", 
-    "fed_pris = PCT0200005", 
+    "total = PCT0200003",
+    "fed_pris = PCT0200005",
     "state_pris = PCT0200006",
     "local_jail = PCT0200007"
   ),
@@ -56,13 +60,16 @@ if (FALSE) {
   gather(key = "type", value = "inmates", -c(lon, lat, NAME)) %>%
   filter(!is.na(inmates)) %>%
   mutate(type = factor(
-    type, levels = c("local_jail", "state_pris", "fed_pris")
+    type,
+    levels = c("local_jail", "state_pris", "fed_pris")
   )) %>%
   arrange(-inmates)
- 
- 
- 
-}
+
+readr::write_rds(pris_pop, here::here("data/pris_pop.rds"))
+```
+
+```{r}
+pris_pop <- readr::read_rds(here::here("data/pris_pop.rds"))
 ```
 
 ### Census Data for Dot Density
@@ -71,7 +78,7 @@ Census data for 2018 (the year of the study) by block group will be used for the
 
 ### Numbers and Qualitative Data from Cornell Paper
 
-The study provides rates by gender, race, income, education level, and region by mutating block group population data with these rates, we can approximate how many people in said block group know someone who is incarcerated.
+The study provides rates by gender, race, income, education level, and region by mutating block group population data with these rates, we can approximate how many people in each block group know someone who is incarcerated.
 
 Survey respondents also described their experience visiting their incarcerated family member or partner, I have joined this data to a layer of US states, and users of the web map will be able to click the state and read their response.
 
@@ -83,12 +90,9 @@ This will be a basic [US states layer](https://www.census.gov/geographies/mappin
 
 ### Carto and Leaflet
 
-I would like to use a dark basemap like Carto Dark Matter and I aim to achieve this using the leaflet package [@leaflet].
+I would like to use a dark basemap like Carto Dark Matter and I aim to achieve this using the leaflet package.[@leaflet]
 
 ```{r}
-library(dplyr)
-library(leaflet)
-
 m <- leaflet() %>% setView(lng = -98.5795, lat = 39.8283, zoom = 4)
 
 m %>% addProviderTiles(providers$CartoDB.DarkMatter)
@@ -96,53 +100,64 @@ m %>% addProviderTiles(providers$CartoDB.DarkMatter)
 
 ### Dot Density
 
-I will be attempting to render the data using dot density based on this [script](https://walker-data.com/tidycensus/reference/as_dot_density.html). I will probably change this to 2018 data with to reflect the year the survey was completed [@tidycensus]. Change to FALSE to TRUE run script.
+I will be attempting to render the data using dot density based on this [script](https://walker-data.com/tidycensus/reference/as_dot_density.html). I will probably change this to 2018 data with to reflect the year the survey was completed.[@tidycensus]
 
 ```{r}
-if (FALSE) {
-  
-  library(tidycensus)
-  library(ggplot2)
-  
-  # Identify variables for mapping
-  race_vars <- c(
-    Hispanic = "P2_002N",
-    White = "P2_005N",
-    Black = "P2_006N",
-    Asian = "P2_008N"
-  )
-  
-  # Get data from tidycensus
-  maryland_race <- get_decennial(
-    geography = "block group",
-    variables = race_vars,
-    state = "MD",
-    geometry = TRUE,
-    year = 2020
-  )
-  
-  # Convert data to dots
-  maryland_dots <- as_dot_density(
-    maryland_race,
-    value = "value",
-    values_per_dot = 100,
-    group = "variable"
-  )
-  
-  # Use one set of polygon geometries as a base layer
-  maryland_base <- maryland_race[maryland_race$variable == "Hispanic", ]
-  
-  # Map with ggplot2
-  ggplot() +
-    geom_sf(data = maryland_base,
-            fill = "white",
-            color = "grey") +
-    geom_sf(data = maryland_dots,
-            aes(color = variable),
-            size = 0.01) +
-    theme_void()
-  
-}
+#| eval: false
+# Identify variables for mapping
+race_vars <- c(
+  Hispanic = "P2_002N",
+  White = "P2_005N",
+  Black = "P2_006N",
+  Asian = "P2_008N"
+)
+
+# Get data from tidycensus
+maryland_race <- get_decennial(
+  geography = "block group",
+  variables = race_vars,
+  state = "MD",
+  geometry = TRUE,
+  year = 2020
+)
+
+readr::write_rds(maryland_race, here::here("data/maryland_race.rds"))
+
+# Convert data to dots
+maryland_dots <- as_dot_density(
+  maryland_race,
+  value = "value",
+  values_per_dot = 100,
+  group = "variable"
+)
+
+readr::write_rds(maryland_dots, here::here("data/maryland_dots.rds"))
+```
+
+
+```{r}
+maryland_race <- readr::read_rds(here::here("data/maryland_race.rds"))
+maryland_dots <- readr::read_rds(here::here("data/maryland_dots.rds"))
+
+maryland_race <- sf::st_make_valid(maryland_race)
+
+# Use one set of polygon geometries as a base layer
+maryland_base <- maryland_race[as.character(maryland_race$variable) == "Hispanic", ]
+
+# Map with ggplot2
+ggplot() +
+  geom_sf(
+    data = maryland_base,
+    fill = "white",
+    color = "grey"
+  ) +
+  geom_sf(
+    data = maryland_dots,
+    aes(color = variable),
+    size = 0.001,
+    alpha = 0.5
+  ) +
+  theme_void()
 ```
 
 One challenge will be having to figure out how to get this onto a leaflet map or an interactive map.
